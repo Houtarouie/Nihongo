@@ -45,9 +45,16 @@ app.get('/api/flashcards/due', (req, res) => {
   const hasProgress = db.prepare('SELECT vocab_id FROM flashcard_progress WHERE user_id = ?').all(user_id).map(r => r.vocab_id);
   const missing = allVocab.filter(v => !hasProgress.includes(v.id));
   const initProgress = db.prepare('INSERT INTO flashcard_progress (vocab_id, user_id) VALUES (?, ?)');
-  const initMany = db.transaction((ids) => { for (const id of ids) initProgress.run(id, user_id); });
-  if (missing.length) initMany(missing);
+  const initMany = db.transaction((ids) => {
+  for (const id of ids) {
+    console.log(id, user_id);
+    initProgress.run(id, user_id);
+  }
+});
 
+console.log(missing);
+
+if (missing.length) initMany(missing);
   const cards = db.prepare(`
     SELECT v.*, fp.id as progress_id, fp.ease_factor, fp.interval, fp.repetitions,
            fp.next_review, fp.status
