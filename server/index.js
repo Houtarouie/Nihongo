@@ -47,7 +47,8 @@ app.get('/api/flashcards/due', (req, res) => {
   const initProgress = db.prepare('INSERT INTO flashcard_progress (vocab_id, user_id) VALUES (?, ?)');
   const initMany = db.transaction((ids) => {
   for (const id of ids) {
-    console.log(id, user_id);
+    console.log(id);
+console.log(id.id);
     initProgress.run(id, user_id);
   }
 });
