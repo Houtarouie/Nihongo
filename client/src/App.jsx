@@ -4,7 +4,7 @@ import Flashcards from './pages/Flashcards.jsx';
 import Vocabulary from './pages/Vocabulary.jsx';
 import Exam from './pages/Exam.jsx';
 import Chat from './pages/Chat.jsx';
-import Chat from './pages/Chat.jsx';
+
 import ImportDeck from './pages/ImportDeck.jsx';
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: 'ti-home', jp: 'ホーム' },
