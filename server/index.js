@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import Anthropic from '@anthropic-ai/sdk';
 import rateLimit from 'express-rate-limit';
 import db from './db.js';
 
@@ -13,7 +12,8 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json());
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama3-8b-8192';
 
 const chatLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: { error: 'Too many requests, slow down!' } });
 
@@ -41,7 +41,6 @@ app.get('/api/vocab/:id', (req, res) => {
 app.get('/api/flashcards/due', (req, res) => {
   const { user_id = 'default', limit = 20 } = req.query;
 
-  // Init progress for any vocab without it
   const allVocab = db.prepare('SELECT id FROM vocabulary').all();
   const hasProgress = db.prepare('SELECT vocab_id FROM flashcard_progress WHERE user_id = ?').all(user_id).map(r => r.vocab_id);
   const missing = allVocab.filter(v => !hasProgress.includes(v.id));
@@ -63,7 +62,6 @@ app.get('/api/flashcards/due', (req, res) => {
 
 app.post('/api/flashcards/review', (req, res) => {
   const { progress_id, quality, user_id = 'default' } = req.body;
-  // quality: 0=again, 1=hard, 3=good, 5=easy (SM-2 scale)
   const prog = db.prepare('SELECT * FROM flashcard_progress WHERE id = ?').get(progress_id);
   if (!prog) return res.status(404).json({ error: 'Progress not found' });
 
@@ -128,7 +126,6 @@ app.get('/api/exam/sections', (req, res) => {
 
 app.post('/api/exam/submit', (req, res) => {
   const { level, section, answers, user_id = 'default' } = req.body;
-  // answers: [{question_id, selected}]
   let score = 0;
   const detailed = answers.map(a => {
     const q = db.prepare('SELECT * FROM jlpt_questions WHERE id=?').get(a.question_id);
@@ -150,11 +147,11 @@ app.get('/api/exam/history', (req, res) => {
   res.json(attempts.map(a => ({ ...a, answers: JSON.parse(a.answers) })));
 });
 
-// ─── CHAT (Claude AI) ─────────────────────────────────────────
+// ─── CHAT (Groq - Llama3) ─────────────────────────────────────
 app.post('/api/chat', chatLimiter, async (req, res) => {
-  const { messages, user_id = 'default' } = req.body;
+  const { messages } = req.body;
 
-  const systemPrompt = `You are Sensei, an expert Japanese language tutor with deep knowledge of JLPT N5–N1. 
+  const systemPrompt = `You are Sensei, an expert Japanese language tutor with deep knowledge of JLPT N5–N1.
 
 Your teaching style:
 - Explain grammar clearly with Japanese examples + romaji + English translation
@@ -173,34 +170,61 @@ Format responses clearly. Use line breaks between examples. If asked to quiz, cr
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-5',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: messages.slice(-12), // keep last 12 messages for context
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages.slice(-12)
+        ],
+        stream: true,
+        max_tokens: 1024,
+        temperature: 0.7
+      })
     });
 
-    stream.on('text', (text) => {
-      res.write(`data: ${JSON.stringify({ text })}\n\n`);
-    });
-
-    stream.on('finalMessage', () => {
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    if (!response.ok) {
+      const err = await response.text();
+      res.write(`data: ${JSON.stringify({ error: err })}\n\n`);
       res.end();
-    });
+      return;
+    }
 
-    stream.on('error', (err) => {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      res.end();
-    });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+      for (const line of lines) {
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') {
+          res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          const text = parsed.choices?.[0]?.delta?.content;
+          if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        } catch {}
+      }
+    }
+    res.end();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
   }
 });
 
-// ─── TTS (returns instructions for browser TTS) ───────────────
+// ─── TTS config ───────────────────────────────────────────────
 app.get('/api/tts/voices', (req, res) => {
-  // We use browser Web Speech API on client; this endpoint provides config
   res.json({ lang: 'ja-JP', rate: 0.85, pitch: 1.0, preferredVoices: ['Google 日本語', 'Microsoft Haruka', 'O-Ren'] });
 });
 
