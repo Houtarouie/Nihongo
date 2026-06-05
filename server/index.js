@@ -49,7 +49,7 @@ app.get('/api/flashcards/due', (req, res) => {
   for (const id of ids) {
     console.log(id);
 console.log(id.id);
-    initProgress.run(id, user_id);
+    initProgress.run(id.id, user_id);
   }
 });
 
