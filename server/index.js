@@ -3,10 +3,30 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import db from './db.js';
+import multer from 'multer';
+
+
 
 dotenv.config();
 
 const app = express();
+
+const upload = multer({
+  dest: 'uploads/'
+});
+
+
+app.post('/api/import/apkg', upload.single('deck'), (req, res) => {
+  console.log(req.file);
+
+  res.json({
+    success: true,
+    filename: req.file.originalname
+  });
+});
+
+
+
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
@@ -47,13 +67,12 @@ app.get('/api/flashcards/due', (req, res) => {
   const initProgress = db.prepare('INSERT INTO flashcard_progress (vocab_id, user_id) VALUES (?, ?)');
   const initMany = db.transaction((ids) => {
   for (const id of ids) {
-    console.log(id);
-console.log(id.id);
+    
     initProgress.run(id.id, user_id);
   }
 });
 
-console.log(missing);
+
 
 if (missing.length) initMany(missing);
   const cards = db.prepare(`

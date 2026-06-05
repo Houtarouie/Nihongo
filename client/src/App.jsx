@@ -4,16 +4,25 @@ import Flashcards from './pages/Flashcards.jsx';
 import Vocabulary from './pages/Vocabulary.jsx';
 import Exam from './pages/Exam.jsx';
 import Chat from './pages/Chat.jsx';
-
+import Chat from './pages/Chat.jsx';
+import ImportDeck from './pages/ImportDeck.jsx';
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: 'ti-home', jp: 'ホーム' },
   { id: 'flashcards', label: 'Flashcards', icon: 'ti-cards', jp: 'カード' },
   { id: 'vocabulary', label: 'Vocabulary', icon: 'ti-book', jp: '単語帳' },
   { id: 'exam', label: 'JLPT Exam', icon: 'ti-pencil', jp: '試験' },
   { id: 'chat', label: 'Chat Sensei', icon: 'ti-messages', jp: '先生' },
+  { id: 'importdeck', label: 'Import Deck', icon: 'ti-upload', jp: '取込' },
 ];
 
-const PAGE_MAP = { dashboard: Dashboard, flashcards: Flashcards, vocabulary: Vocabulary, exam: Exam, chat: Chat };
+const PAGE_MAP = {
+  dashboard: Dashboard,
+  flashcards: Flashcards,
+  vocabulary: Vocabulary,
+  exam: Exam,
+  chat: Chat,
+  importdeck: ImportDeck
+};
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
