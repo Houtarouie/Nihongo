@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+const BASE = import.meta.env.VITE_API_URL || '';
+
+const api = axios.create({ baseURL: `${BASE}/api` });
 
 export const vocabAPI = {
   list: (params) => api.get('/vocab', { params }).then(r => r.data),
@@ -21,7 +23,7 @@ export const examAPI = {
 };
 
 export async function streamChat(messages, onChunk, onDone) {
-  const resp = await fetch('/api/chat', {
+  const resp = await fetch(`${BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages }),
